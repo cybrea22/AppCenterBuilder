@@ -30,21 +30,5 @@ namespace AppCenterBuilder
             this.Debug = opts.Debug;
         }
     }
-    public class CommandLineOptions
-    {
-        [Option(shortName: 'u', longName: "url", Required = false, HelpText = "Base Url", Default = "https://api.appcenter.ms/")]
-        public string BaseUrl { get; set; }
-
-        [Option(shortName: 'a', longName: "app", Required = true, HelpText = "App Name")]
-        public string AppName { get; set; }
-
-        [Option(shortName: 'o', longName: "owner", Required = true, HelpText = "Owner Name")]
-        public string OwnerName { get; set; }
-
-        [Option(shortName: 't', longName: "token", Required = true, HelpText = "Token")]
-        public string Token { get; set; }
-
-        [Option(shortName: 'd', longName: "debug", Required = false, HelpText = "Debug", Default = true)]
-        public bool Debug { get; set; }
-    }
+    
 }
