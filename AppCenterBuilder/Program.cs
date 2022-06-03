@@ -1,6 +1,9 @@
-﻿using Newtonsoft.Json;
+﻿using CommandLine;
+using Microsoft.CodeAnalysis;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -13,14 +16,8 @@ namespace AppCenterBuilder
     class Program
     {
         static HttpClient client = new HttpClient();
-        static string baseUrl = "https://api.appcenter.ms/";
-        static string ownerName = "lilia.sabitova";
-        static string appName = "App5";
-        static string appUrl = $"v0.1/apps/{ownerName}/{appName}";
-        static bool debug = true;
-
-        static string token = "";
         public const string ApiKeyName = "X-API-Token";
+        static Parameters prm;
         
 
         public class BuildParams
@@ -38,7 +35,7 @@ namespace AppCenterBuilder
         static async Task PrintBuildInfoAsync(int buildNum)
         {
             string res = null;
-            HttpResponseMessage response = await client.GetAsync($"/v0.1/apps/{ownerName}/{appName}/builds/{buildNum}");
+            HttpResponseMessage response = await client.GetAsync($"/v0.1/apps/{prm.OwnerName}/{prm.AppName}/builds/{buildNum}");
             if (response.IsSuccessStatusCode)
             {
                 res = await response.Content.ReadAsStringAsync();
@@ -48,7 +45,7 @@ namespace AppCenterBuilder
                     branchName = data["sourceBranch"].ToString(),
                     isSuccessful = data["result"].ToString().CompareTo("succeeded") == 0,
                     elapsedTime = (DateTime.Parse(data["finishTime"].ToString()).Subtract(DateTime.Parse(data["startTime"].ToString()))).TotalSeconds,
-                    logsLink = $"{baseUrl}v0.1/apps/{ownerName}/{appName}/builds/{buildNum}/logs"
+                    logsLink = $"{prm.BaseUrl}v0.1/apps/{prm.OwnerName}/{prm.AppName}/builds/{buildNum}/logs"
                 };
                 Console.WriteLine("{0} build {1} in {2} seconds. Link to build logs: {3}", bi.branchName, bi.isSuccessful ? "completed" : "failed", bi.elapsedTime, bi.logsLink);
             }
@@ -62,7 +59,7 @@ namespace AppCenterBuilder
             byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
             string res = null;
-            HttpResponseMessage response = await client.PostAsync($"/v0.1/apps/{ownerName}/{appName}/branches/{branchName}/builds", byteContent);
+            HttpResponseMessage response = await client.PostAsync($"/v0.1/apps/{prm.OwnerName}/{prm.AppName}/branches/{branchName}/builds", byteContent);
             if (response.IsSuccessStatusCode)
             {
                 res = await response.Content.ReadAsStringAsync();
@@ -93,7 +90,7 @@ namespace AppCenterBuilder
         static async Task<bool> IsBuildFinishedAsync(int buildNum)
         {
             string res = null;
-            HttpResponseMessage response = await client.GetAsync($"/v0.1/apps/{ownerName}/{appName}/builds/{buildNum}");
+            HttpResponseMessage response = await client.GetAsync($"/v0.1/apps/{prm.OwnerName}/{prm.AppName}/builds/{buildNum}");
             if (response.IsSuccessStatusCode)
             {
                 res = await response.Content.ReadAsStringAsync();
@@ -107,7 +104,7 @@ namespace AppCenterBuilder
         {
             Dictionary<string, string> branches = null;
             string res = null;
-            HttpResponseMessage response = await client.GetAsync($"v0.1/apps/{ownerName}/{appName}/branches");
+            HttpResponseMessage response = await client.GetAsync($"v0.1/apps/{prm.OwnerName}/{prm.AppName}/branches");
             if (response.IsSuccessStatusCode)
             {
                 res = await response.Content.ReadAsStringAsync();
@@ -126,11 +123,11 @@ namespace AppCenterBuilder
         static async Task RunAsync()
         {
             // configure client
-            client.BaseAddress = new Uri(baseUrl);
+            client.BaseAddress = new Uri(prm.BaseUrl);
             client.DefaultRequestHeaders.Accept.Clear();
             client.DefaultRequestHeaders.Accept.Add(
                 new MediaTypeWithQualityHeaderValue("application/json"));            
-            client.DefaultRequestHeaders.Add(ApiKeyName, token);
+            client.DefaultRequestHeaders.Add(ApiKeyName, prm.Token);
 
             try
             {
@@ -142,7 +139,7 @@ namespace AppCenterBuilder
                     int buildNum = await RunBuildAsync(branch.Key, new BuildParams
                     {
                         sourceVersion = branch.Value,
-                        debug = debug
+                        debug = prm.Debug
                     });
                     await ReportBuildResultAsync(new TimeSpan(0, 5, 0), buildNum);
                 }
@@ -154,8 +151,23 @@ namespace AppCenterBuilder
             }
             Console.ReadLine();
         }
+        private static void UseParamsFromConfig(IEnumerable errs)
+        {
+            Console.WriteLine("Command Line parameters were not provided or not valid. Getting parameters from config file...");
+            prm = new Parameters();
+        }
+        private static void UseCmdLineParams(CommandLineOptions opts)
+        {
+            Console.WriteLine("Command Line parameters provided are valid");
+            prm = new Parameters(opts);
+        }
+
         static void Main(string[] args)
         {
+            Parser.Default.ParseArguments<CommandLineOptions>(args)
+               .WithParsed(opts => UseCmdLineParams(opts))
+               .WithNotParsed((errs) => UseParamsFromConfig(errs));
+
             RunAsync().GetAwaiter().GetResult();
         }
     }
