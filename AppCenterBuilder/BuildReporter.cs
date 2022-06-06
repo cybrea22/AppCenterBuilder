@@ -30,7 +30,6 @@ namespace AppCenterBuilder
         
         public async Task PrintBuildInfoAsync(int buildNum)
         {
-            ////Console.WriteLine($"PrintBuildInfoAsync started on build {buildNum}");
             string res = null;
             HttpResponseMessage response = await client.GetAsync($"/v0.1/apps/{settings.OwnerName}/{settings.AppName}/builds/{buildNum}");
             if (response.IsSuccessStatusCode)
@@ -55,7 +54,6 @@ namespace AppCenterBuilder
 
         public async Task<int> RunBuildAsync(BuildParams bp)
         {
-            ////Console.WriteLine($"RunBuildAsync started on branch {bp.BranchName}");
             var content = JsonConvert.SerializeObject(bp);
             var buffer = System.Text.Encoding.UTF8.GetBytes(content);
             var byteContent = new ByteArrayContent(buffer);
@@ -75,14 +73,12 @@ namespace AppCenterBuilder
                 Console.WriteLine($"Unseccessful API Call: {response.StatusCode} - " +
                     $"{response.ReasonPhrase} at {response.RequestMessage.RequestUri}");
             }
-            ////Console.WriteLine($"RunBuildAsync ended on branch {bp.BranchName}");
 
             return 0;
         }
 
         public async Task ReportBuildResultAsync(int buildNum)
         {
-            ////Console.WriteLine($"ReportBuildResultAsync started on build {buildNum}");
             DateTime start = DateTime.Now;
             while (!await IsBuildFinishedAsync(buildNum))
             {
@@ -94,15 +90,11 @@ namespace AppCenterBuilder
                 // wait 20 sec
                 Thread.Sleep(1000 * 20);
             }
-            ////Console.WriteLine($"ReportBuildResultAsync continued on build {buildNum}");
             await PrintBuildInfoAsync(buildNum);
-            ////Console.WriteLine($"ReportBuildResultAsync ended on build {buildNum}");
         }
 
         public async Task<bool> IsBuildFinishedAsync(int buildNum)
         {
-            ////Console.WriteLine($"IsBuildFinishedAsync started on build {buildNum}");
-
             string res = null;
             HttpResponseMessage response = await client.GetAsync($"/v0.1/apps/{settings.OwnerName}/{settings.AppName}/builds/{buildNum}");
             if (response.IsSuccessStatusCode)
@@ -116,14 +108,11 @@ namespace AppCenterBuilder
                 Console.WriteLine($"Unseccessful API Call: {response.StatusCode} - " +
                     $"{response.ReasonPhrase} at {response.RequestMessage.RequestUri}");
             }
-            ////Console.WriteLine($"IsBuildFinishedAsync ended on build {buildNum}");
             return false;
         }
 
         public async Task<Dictionary<string, string>> GetBranchesAsync()
         {
-            ////Console.WriteLine($"GetBranchesAsync started");
-
             // branches contain branch name and commit hash
             Dictionary<string, string> branches = null;
 
@@ -146,7 +135,6 @@ namespace AppCenterBuilder
                 Console.WriteLine($"Unseccessful API Call: {response.StatusCode} - " +
                     $"{response.ReasonPhrase} at {response.RequestMessage.RequestUri}");
             }
-            ////Console.WriteLine($"GetBranchesAsync ended");
             
             return branches;
         }
