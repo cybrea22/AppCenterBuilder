@@ -25,23 +25,15 @@ namespace AppCenterBuilder
             }
             else
             {
-               Parser.Default.ParseArguments<CommandLineOptions>(args)
-                   .WithParsed(opts => { 
-                       UseCmdLineParams(opts); 
+               Parser.Default.ParseArguments<CommandLineSettings>(args)
+                   .WithParsed(opts => {
+                       CommandLineSettingsHandler.UseParams(opts); 
                        br = new BuildReporter(opts);
                        br.BuildAndReport().GetAwaiter().GetResult(); 
                    })
-                   .WithNotParsed((errs) => HandleParamErrors(errs));
+                   .WithNotParsed((errs) => CommandLineSettingsHandler.HandleParamErrors(errs));
             }
-            
-        }
-        private static void HandleParamErrors(IEnumerable errs)
-        {
-            Console.WriteLine("Command Line parameters are not valid!");
-        }
-        private static void UseCmdLineParams(CommandLineOptions opts)
-        {
-            Console.WriteLine("Command Line parameters are valid.");
+            Console.ReadLine();
         }
     }
 }

@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Collections;
-using System.Collections.Generic;
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Threading;
@@ -14,23 +12,11 @@ using Newtonsoft.Json;
 
 namespace AppCenterBuilder
 {
-    public class BuildParams
-    {
-        public string SourceVersion { get; set; }
-        public bool Debug { get; set; }
-    }
-    public class BuildInfo
-    {
-        public string BranchName { get; set; }
-        public bool IsSuccessful { get; set; }
-        public double ElapsedTime { get; set; }
-        public string LogsLink { get; set; }
-    }
-    class BuildReporter
+    class BuildReporter: IBuildReporter
     {
         static HttpClient client = new HttpClient();
-        public const string ApiKeyName = "X-API-Token";
         private readonly ISettings settings;
+        private const int timeout = 8 * 60; // build run timeout in seconds
         public BuildReporter(ISettings settings)
         {
             this.settings = settings;
@@ -39,12 +25,12 @@ namespace AppCenterBuilder
             client.DefaultRequestHeaders.Accept.Clear();
             client.DefaultRequestHeaders.Accept.Add(
                 new MediaTypeWithQualityHeaderValue("application/json"));
-            client.DefaultRequestHeaders.Add(ApiKeyName, this.settings.Token);
+            client.DefaultRequestHeaders.Add(settings.ApiKeyName, settings.Token);
         }
         
         public async Task PrintBuildInfoAsync(int buildNum)
         {
-            Console.WriteLine($"PrintBuildInfoAsync started on build {buildNum}");
+            ////Console.WriteLine($"PrintBuildInfoAsync started on build {buildNum}");
             string res = null;
             HttpResponseMessage response = await client.GetAsync($"/v0.1/apps/{settings.OwnerName}/{settings.AppName}/builds/{buildNum}");
             if (response.IsSuccessStatusCode)
@@ -60,18 +46,23 @@ namespace AppCenterBuilder
                 };
                 Console.WriteLine("{0} build {1} in {2} seconds. Link to build logs: {3}", bi.BranchName, bi.IsSuccessful ? "completed" : "failed", bi.ElapsedTime, bi.LogsLink);
             }
+            else
+            {
+                Console.WriteLine($"Unseccessful API Call: {response.StatusCode} - " +
+                    $"{response.ReasonPhrase} at {response.RequestMessage.RequestUri}");
+            }
         }
 
-        public async Task<int> RunBuildAsync(string BranchName, BuildParams bp)
+        public async Task<int> RunBuildAsync(BuildParams bp)
         {
-            Console.WriteLine($"RunBuildAsync started on branch {BranchName}");
+            ////Console.WriteLine($"RunBuildAsync started on branch {bp.BranchName}");
             var content = JsonConvert.SerializeObject(bp);
             var buffer = System.Text.Encoding.UTF8.GetBytes(content);
             var byteContent = new ByteArrayContent(buffer);
             byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
             string res = null;
-            HttpResponseMessage response = await client.PostAsync($"/v0.1/apps/{settings.OwnerName}/{settings.AppName}/branches/{BranchName}/builds", byteContent);
+            HttpResponseMessage response = await client.PostAsync($"/v0.1/apps/{settings.OwnerName}/{settings.AppName}/branches/{bp.BranchName}/builds", byteContent);
             if (response.IsSuccessStatusCode)
             {
                 res = await response.Content.ReadAsStringAsync();
@@ -79,34 +70,39 @@ namespace AppCenterBuilder
                 var data = (JObject)JsonConvert.DeserializeObject(res);
                 return int.Parse(data["id"].ToString());
             }
-            Console.WriteLine($"RunBuildAsync ended on branch {BranchName}");
-            // response.EnsureSuccessStatusCode();
+            else
+            {
+                Console.WriteLine($"Unseccessful API Call: {response.StatusCode} - " +
+                    $"{response.ReasonPhrase} at {response.RequestMessage.RequestUri}");
+            }
+            ////Console.WriteLine($"RunBuildAsync ended on branch {bp.BranchName}");
 
             return 0;
         }
 
-        public async Task<bool> ReportBuildResultAsync(TimeSpan timeout, int buildNum)
+        public async Task ReportBuildResultAsync(int buildNum)
         {
-            Console.WriteLine($"ReportBuildResultAsync started on build {buildNum}");
+            ////Console.WriteLine($"ReportBuildResultAsync started on build {buildNum}");
             DateTime start = DateTime.Now;
             while (!await IsBuildFinishedAsync(buildNum))
             {
-                if (start.Add(timeout).CompareTo(DateTime.Now) <= 0)
-                    return false;
-
-                // wait 30 sec
-                Thread.Sleep(1000 * 30);
+                if (start.Add(TimeSpan.FromSeconds(timeout)).CompareTo(DateTime.Now) <= 0)
+                {
+                    Console.WriteLine($"ReportBuildResultAsync timed out for {buildNum}");
+                    return;
+                }
+                // wait 20 sec
+                Thread.Sleep(1000 * 20);
             }
-
-            Console.WriteLine($"ReportBuildResultAsync continued on build {buildNum}");
+            ////Console.WriteLine($"ReportBuildResultAsync continued on build {buildNum}");
             await PrintBuildInfoAsync(buildNum);
-            Console.WriteLine($"ReportBuildResultAsync ended on build {buildNum}");
-            return true;
+            ////Console.WriteLine($"ReportBuildResultAsync ended on build {buildNum}");
         }
 
         public async Task<bool> IsBuildFinishedAsync(int buildNum)
         {
-            Console.WriteLine($"IsBuildFinishedAsync started on build {buildNum}");
+            ////Console.WriteLine($"IsBuildFinishedAsync started on build {buildNum}");
+
             string res = null;
             HttpResponseMessage response = await client.GetAsync($"/v0.1/apps/{settings.OwnerName}/{settings.AppName}/builds/{buildNum}");
             if (response.IsSuccessStatusCode)
@@ -115,16 +111,25 @@ namespace AppCenterBuilder
                 var data = (JObject)JsonConvert.DeserializeObject(res);
                 return (data["status"].ToString().CompareTo("completed") == 0);
             }
-            Console.WriteLine($"IsBuildFinishedAsync ended on build {buildNum}");
+            else
+            {
+                Console.WriteLine($"Unseccessful API Call: {response.StatusCode} - " +
+                    $"{response.ReasonPhrase} at {response.RequestMessage.RequestUri}");
+            }
+            ////Console.WriteLine($"IsBuildFinishedAsync ended on build {buildNum}");
             return false;
         }
 
         public async Task<Dictionary<string, string>> GetBranchesAsync()
         {
-            Console.WriteLine($"GetBranchesAsync started");
+            ////Console.WriteLine($"GetBranchesAsync started");
+
+            // branches contain branch name and commit hash
             Dictionary<string, string> branches = null;
+
             string res = null;
             HttpResponseMessage response = await client.GetAsync($"v0.1/apps/{settings.OwnerName}/{settings.AppName}/branches");
+            // response.EnsureSuccessStatusCode();
             if (response.IsSuccessStatusCode)
             {
                 res = await response.Content.ReadAsStringAsync();
@@ -133,22 +138,17 @@ namespace AppCenterBuilder
                 branches = new Dictionary<string, string>(data.Count);
                 foreach (JObject item in data)
                 {
-                    // Console.WriteLine(item["branch"]["name"]);
                     branches.Add(item["branch"]["name"].ToString(), item["branch"]["commit"]["sha"].ToString());
                 }
             }
-            Console.WriteLine($"GetBranchesAsync ended");
-            return branches;
-        }
-
-        public async Task DoInSeq(string branch, string sha)
-        {
-            int buildNum = await RunBuildAsync(branch, new BuildParams
+            else
             {
-                SourceVersion = sha,
-                Debug = settings.Debug
-            });
-            await ReportBuildResultAsync(new TimeSpan(0, 5, 0), buildNum);
+                Console.WriteLine($"Unseccessful API Call: {response.StatusCode} - " +
+                    $"{response.ReasonPhrase} at {response.RequestMessage.RequestUri}");
+            }
+            ////Console.WriteLine($"GetBranchesAsync ended");
+            
+            return branches;
         }
         public async Task BuildAndReport()
         {
@@ -157,42 +157,32 @@ namespace AppCenterBuilder
                 // get list of branches for application
                 Dictionary<string, string> branches = await GetBranchesAsync();
 
-                var buildTasks = new List<Task>();
-                foreach (var branch in branches)
+                if (branches != null)
                 {
-                    /*
-                    int buildNum = await RunBuildAsync(branch.Key, new BuildParams
+                    var buildTasks = new List<Task>();
+
+                    // for each branch independantly: start build and print results consequentially
+                    foreach (var branch in branches)
                     {
-                        SourceVersion = branch.Value,
-                        Debug = settings.Debug
-                    });
-                    await ReportBuildResultAsync(new TimeSpan(0, 5, 0), buildNum);
-                    */
-                    /*
-                    Task<int> t1 = Task.Run(() => RunBuildAsync(branch.Key, new BuildParams
-                    {
-                        SourceVersion = branch.Value,
-                        Debug = settings.Debug
-                    }));
-                    Task t2 = t1.ContinueWith(task => ReportBuildResultAsync(new TimeSpan(0, 5, 0), task.Result));
-                    buildTasks.Add(t2);
-                    */
-                    buildTasks.Add(Task.Run(() => DoInSeq(branch.Key, branch.Value)));
+                        buildTasks.Add(Task.Run(async () =>
+                        {
+                            int buildNum = await RunBuildAsync(new BuildParams
+                            {
+                                BranchName = branch.Key,
+                                SourceVersion = branch.Value,
+                                Debug = settings.Debug
+                            });
+                            await ReportBuildResultAsync(buildNum);
+                        }));
+                    }
+                    Task.WaitAll(buildTasks.ToArray());
                 }
-                //await Task.WaitAll(buildTasks);
-                Task.WaitAll(buildTasks.ToArray());
-
-
-                //var results = await Task.WhenAll(buildTasks);
-                //Task tt = Task.WhenAll(buildTasks);
-                //tt.Wait();
-                int i = 0;
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
+                throw;
             }
-            Console.ReadLine();
         }
     }
 }
