@@ -33,6 +33,14 @@ namespace AppCenterBuilder
         {
             get { return Convert.ToBoolean(ConfigurationManager.AppSettings.Get("Debug")); }
         }
+        public double Timeout
+        {
+            get { return Convert.ToDouble(ConfigurationManager.AppSettings.Get("Timeout")); }
+        }
+        public int Sleep
+        {
+            get { return Convert.ToInt32(ConfigurationManager.AppSettings.Get("Sleep")); }
+        }
     }
     public class CommandLineSettings: ISettings
     {
@@ -45,14 +53,20 @@ namespace AppCenterBuilder
         [Option(shortName: 'o', longName: "owner", Required = true, HelpText = "Owner Name")]
         public string OwnerName { get; set; }
 
-        [Option(shortName: 'k', longName: "apikey", Required = false, HelpText = "Api Key Name, i.e. X-API-Token", Default = "X-API-Token")]
+        [Option(longName: "apikey", Required = false, HelpText = "Api Key Name, i.e. X-API-Token", Default = "X-API-Token")]
         public string ApiKeyName { get; set; }
 
-        [Option(shortName: 't', longName: "token", Required = true, HelpText = "Token")]
+        [Option(shortName: 'k', longName: "token", Required = true, HelpText = "Token")]
         public string Token { get; set; }
 
         [Option(shortName: 'd', longName: "debug", Required = false, HelpText = "Debug", Default = true)]
         public bool Debug { get; set; }
+
+        [Option(shortName: 't', longName: "timeout", Required = false, HelpText = "Time Out for build run (in seconds)", Default = 600)]
+        public double Timeout { get; set; }
+
+        [Option(shortName: 's', longName: "sleep", Required = false, HelpText = "Sleep for build finishing check (in seconds)", Default = 20)]
+        public int Sleep { get; set; }
     }
     public class CommandLineSettingsHandler: ISettingsHandler
     {

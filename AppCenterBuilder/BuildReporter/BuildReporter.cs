@@ -16,7 +16,6 @@ namespace AppCenterBuilder
     {
         static HttpClient client = new HttpClient();
         private readonly ISettings settings;
-        private const int timeout = 8 * 60; // build run timeout in seconds
         public BuildReporter(ISettings settings)
         {
             this.settings = settings;
@@ -31,6 +30,7 @@ namespace AppCenterBuilder
         public async Task PrintBuildInfoAsync(int buildNum)
         {
             string res = null;
+            // get build info
             HttpResponseMessage response = await client.GetAsync($"/v0.1/apps/{settings.OwnerName}/{settings.AppName}/builds/{buildNum}");
             if (response.IsSuccessStatusCode)
             {
@@ -47,8 +47,7 @@ namespace AppCenterBuilder
             }
             else
             {
-                Console.WriteLine($"Unseccessful API Call: {response.StatusCode} - " +
-                    $"{response.ReasonPhrase} at {response.RequestMessage.RequestUri}");
+                PrintUnsuccessfulAPICall(response);
             }
         }
 
@@ -60,42 +59,44 @@ namespace AppCenterBuilder
             byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
             string res = null;
+            // run build for specific branch, commit hash and debug mode are apecified above and passed as parameters
             HttpResponseMessage response = await client.PostAsync($"/v0.1/apps/{settings.OwnerName}/{settings.AppName}/branches/{bp.BranchName}/builds", byteContent);
             if (response.IsSuccessStatusCode)
             {
                 res = await response.Content.ReadAsStringAsync();
-
                 var data = (JObject)JsonConvert.DeserializeObject(res);
                 return int.Parse(data["id"].ToString());
             }
             else
             {
-                Console.WriteLine($"Unseccessful API Call: {response.StatusCode} - " +
-                    $"{response.ReasonPhrase} at {response.RequestMessage.RequestUri}");
+                PrintUnsuccessfulAPICall(response);
             }
-
             return 0;
         }
 
         public async Task ReportBuildResultAsync(int buildNum)
         {
-            DateTime start = DateTime.Now;
-            while (!await IsBuildFinishedAsync(buildNum))
+            if (buildNum != 0)
             {
-                if (start.Add(TimeSpan.FromSeconds(timeout)).CompareTo(DateTime.Now) <= 0)
+                DateTime start = DateTime.Now;
+                while (!await IsBuildFinishedAsync(buildNum))
                 {
-                    Console.WriteLine($"ReportBuildResultAsync timed out for {buildNum}");
-                    return;
+                    if (start.Add(TimeSpan.FromSeconds(settings.Timeout)).CompareTo(DateTime.Now) <= 0)
+                    {
+                        Console.WriteLine($"ReportBuildResultAsync timed out for {buildNum}");
+                        return;
+                    }
+                    // sleep time between checking if build is finished
+                    Thread.Sleep(1000 * settings.Sleep);
                 }
-                // wait 20 sec
-                Thread.Sleep(1000 * 20);
+                await PrintBuildInfoAsync(buildNum);
             }
-            await PrintBuildInfoAsync(buildNum);
         }
 
         public async Task<bool> IsBuildFinishedAsync(int buildNum)
         {
             string res = null;
+            // get build info
             HttpResponseMessage response = await client.GetAsync($"/v0.1/apps/{settings.OwnerName}/{settings.AppName}/builds/{buildNum}");
             if (response.IsSuccessStatusCode)
             {
@@ -105,8 +106,7 @@ namespace AppCenterBuilder
             }
             else
             {
-                Console.WriteLine($"Unseccessful API Call: {response.StatusCode} - " +
-                    $"{response.ReasonPhrase} at {response.RequestMessage.RequestUri}");
+                PrintUnsuccessfulAPICall(response);
             }
             return false;
         }
@@ -117,12 +117,11 @@ namespace AppCenterBuilder
             Dictionary<string, string> branches = null;
 
             string res = null;
+            // get info about branches
             HttpResponseMessage response = await client.GetAsync($"v0.1/apps/{settings.OwnerName}/{settings.AppName}/branches");
-            // response.EnsureSuccessStatusCode();
             if (response.IsSuccessStatusCode)
             {
                 res = await response.Content.ReadAsStringAsync();
-
                 var data = (JArray)JsonConvert.DeserializeObject(res);
                 branches = new Dictionary<string, string>(data.Count);
                 foreach (JObject item in data)
@@ -132,10 +131,8 @@ namespace AppCenterBuilder
             }
             else
             {
-                Console.WriteLine($"Unseccessful API Call: {response.StatusCode} - " +
-                    $"{response.ReasonPhrase} at {response.RequestMessage.RequestUri}");
-            }
-            
+                PrintUnsuccessfulAPICall(response);
+            }            
             return branches;
         }
         public async Task BuildAndReport()
@@ -168,9 +165,16 @@ namespace AppCenterBuilder
             }
             catch (Exception e)
             {
+                // TODO: expand exceptions handling
                 Console.WriteLine(e.Message);
                 throw;
             }
+        }
+        private void PrintUnsuccessfulAPICall(HttpResponseMessage response)
+        {
+            // TODO: add logger
+            Console.WriteLine($"Unseccessful API Call: {response.StatusCode} - " +
+                    $"{response.ReasonPhrase} at {response.RequestMessage.RequestUri}");
         }
     }
 }

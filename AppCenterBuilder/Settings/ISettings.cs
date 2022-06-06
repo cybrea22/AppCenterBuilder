@@ -12,5 +12,7 @@ namespace AppCenterBuilder
         string ApiKeyName { get; }
         string Token { get; }
         bool Debug { get; }
+        double Timeout { get; }
+        int Sleep { get; }
     }
 }
